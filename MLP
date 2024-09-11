@@ -1,0 +1,158 @@
+# Importação das bibliotecas necessárias
+import pandas as pd
+import numpy as np
+from sklearn.model_selection import train_test_split, GridSearchCV
+from sklearn.preprocessing import StandardScaler, OneHotEncoder
+from sklearn.neural_network import MLPClassifier
+from sklearn.metrics import roc_auc_score, roc_curve, auc, confusion_matrix, ConfusionMatrixDisplay
+import matplotlib.pyplot as plt
+
+# Carregando o dataset
+df = pd.read_csv('heart.csv')
+
+# Exibindo as primeiras linhas para uma compreensão inicial dos dados
+print(df.head())
+
+# Substituindo valores ausentes manualmente
+# Para variáveis numéricas, substitui os NaN pela mediana
+for col in df.select_dtypes(include=['int64', 'float64']).columns:
+    df[col].fillna(df[col].median(), inplace=True)
+
+# Para variáveis categóricas, substitui os NaN pelo valor mais frequente
+for col in df.select_dtypes(include=['object']).columns:
+    df[col].fillna(df[col].mode()[0], inplace=True)
+
+# Separando as features (X) e o target (y)
+X = df.drop('target', axis=1)
+y = df['target']
+
+# Identificando colunas categóricas e numéricas
+categorical_features = X.select_dtypes(include=['object']).columns
+numerical_features = X.select_dtypes(include=['int64', 'float64']).columns
+
+# Padronização das variáveis numéricas
+scaler = StandardScaler()
+X[numerical_features] = scaler.fit_transform(X[numerical_features])
+
+# One-Hot Encoding para variáveis categóricas
+encoder = OneHotEncoder(handle_unknown='ignore', sparse=False)
+encoded_categorical = pd.DataFrame(encoder.fit_transform(X[categorical_features]))
+
+# Renomeando colunas categóricas para evitar duplicatas
+encoded_categorical.columns = encoder.get_feature_names_out(categorical_features)
+
+# Resetando os índices para evitar problemas na concatenação
+encoded_categorical.reset_index(drop=True, inplace=True)
+X.reset_index(drop=True, inplace=True)
+
+# Concatenando as colunas numéricas padronizadas com as categóricas codificadas
+X = pd.concat([X[numerical_features], encoded_categorical], axis=1)
+
+# Separando os dados em treino e teste
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42, stratify=y)
+
+# Tunagem dos hiperparâmetros com GridSearchCV usando a métrica AUC
+param_grid = {
+    'hidden_layer_sizes': [(50,), (100,), (50, 50)],
+    'activation': ['relu', 'tanh'],
+    'solver': ['adam', 'sgd'],
+    'alpha': [0.0001, 0.001]
+}
+
+# Instanciando o modelo
+mlp = MLPClassifier(max_iter=1000, random_state=42)
+
+# Configurando o GridSearchCV
+grid_search = GridSearchCV(mlp, param_grid, cv=5, scoring='roc_auc', n_jobs=-1)
+
+# Treinando o modelo com a tunagem
+grid_search.fit(X_train, y_train)
+
+# Melhor modelo encontrado
+best_model = grid_search.best_estimator_
+
+# Previsões no conjunto de teste
+y_pred = best_model.predict(X_test)
+y_prob = best_model.predict_proba(X_test)[:, 1]
+
+# Avaliação do modelo
+auc_score = roc_auc_score(y_test, y_prob)
+
+#Exibindo o AUC Score
+print(f'AUC Score: {auc_score}')
+
+# Plotando a curva ROC
+fpr, tpr, _ = roc_curve(y_test, y_prob)
+plt.figure()
+plt.plot(fpr, tpr, color='darkorange', lw=2, label=f'ROC curve (area = {auc_score:.2f})')
+plt.plot([0, 1], [0, 1], color='navy', lw=2, linestyle='--')
+plt.xlabel('False Positive Rate')
+plt.ylabel('True Positive Rate')
+plt.title('Receiver Operating Characteristic')
+plt.legend(loc="lower right")
+plt.show()
+
+# Matriz de Confusão
+cm = confusion_matrix(y_test, y_pred)
+disp = ConfusionMatrixDisplay(confusion_matrix=cm)
+disp.plot(cmap=plt.cm.Blues)
+plt.title('Matriz de Confusão')
+plt.show()
+
+# Gráfico de Distribuição das Probabilidades com Matplotlib
+plt.figure(figsize=(8, 6))
+plt.hist(y_prob, bins=20, color='blue', alpha=0.7, edgecolor='black')
+plt.title('Distribuição das Probabilidades Previstas')
+plt.xlabel('Probabilidade de Doença Cardíaca')
+plt.ylabel('Frequência')
+plt.grid(True)  # Adiciona linhas de grade ao gráfico para melhor visualização
+plt.show()
+
+# Função para prever a probabilidade de doença cardíaca
+def prever_doenca_cardiaca(dados):
+    """
+    Prever a probabilidade de um paciente ter doença cardíaca com base nos dados fornecidos.
+
+    Parâmetros:
+    - dados (dict): Um dicionário com os valores das características do paciente.
+
+    Retorno:
+    - float: Probabilidade de o paciente ter doença cardíaca.
+    """
+    # Convertendo os dados de entrada para um DataFrame
+    df_novo = pd.DataFrame([dados])
+
+    # Aplicando o mesmo pré-processamento usado no modelo
+    df_novo[numerical_features] = scaler.transform(df_novo[numerical_features])
+    encoded_novo = pd.DataFrame(encoder.transform(df_novo[categorical_features]))
+    encoded_novo.columns = encoder.get_feature_names_out(categorical_features)
+
+    # Concatenando os dados transformados
+    df_novo.reset_index(drop=True, inplace=True)
+    encoded_novo.reset_index(drop=True, inplace=True)
+    df_novo = pd.concat([df_novo[numerical_features], encoded_novo], axis=1)
+
+    # Fazendo a previsão com o modelo treinado
+    probabilidade = best_model.predict_proba(df_novo)[:, 1][0]
+    return probabilidade
+
+# Exemplo
+dados_paciente = {
+    'age': 71,
+    'sex': 0,
+    'cp': 0,
+    'trestbps': 112,
+    'chol': 149,
+    'fbs': 0,
+    'restecg': 1,
+    'thalach': 125,
+    'exang': 0,
+    'oldpeak': 1.6,
+    'slope': 1,
+    'ca': 0,
+    'thal': 2,
+}
+
+# Mostrando a probabilidade de doença cardíaca para o exemplo fictício
+probabilidade = prever_doenca_cardiaca(dados_paciente)
+print(f"Probabilidade de doença cardíaca: {probabilidade:.2%}")
