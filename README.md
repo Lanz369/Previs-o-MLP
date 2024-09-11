@@ -11,3 +11,6 @@ O campo "target" refere-se à presença de doença cardíaca no paciente. É um 
 O modelo de MLP apresentou uma boa eficiência na previsão de doenças cardíacas, destacada pela alta pontuação da AUC. A curva ROC mostrou que o modelo é robusto em diferenciar entre os casos de doença e não doença, mesmo em cenários desafiadores.
 
 Em resumo, o uso de técnicas de pré-processamento robustas, a escolha de uma arquitetura de rede neural adequada, e a otimização através do GridSearchCV foram fundamentais para atingir um modelo eficiente e confiável para a previsão de doenças cardíacas. Este trabalho demonstra a importância de cada etapa no pipeline de machine learning para alcançar resultados de alta qualidade em tarefas de classificação médica.
+
+# Licença
+Este projeto está licenciado sob a licença MIT - veja o arquivo LICENSE para mais detalhes.
